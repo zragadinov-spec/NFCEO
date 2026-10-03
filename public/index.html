@@ -127,6 +127,204 @@
             container.insertBefore(newLink, addBtn);
         }
 
+        // Получаем имя из ссылки (если имени нет, открываем 'default')
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentUser = urlParams.get('user') || 'default';
+
+        // --- ЗАГРУЗКА ПРОФИЛЯ ---
+        async function loadProfile() {
+            try {
+                const response = await fetch(`/api/profile/${currentUser}`, { cache: 'no-store' });
+                const result = await response.json();
+
+                if (result.success) {
+                    const profile = result.profile;
+
+                    // Текст
+                    document.querySelector('.profile-name').innerText = profile.full_name || 'Без имени';
+                    document.querySelector('.profile-bio').innerText = profile.bio || 'Без описания';
+
+                    // Фотографии (если они есть в базе)
+                    if (profile.avatar_url) {
+                        document.getElementById('avatarPreview').src = profile.avatar_url;
+                    }
+                    if (profile.banner_url) {
+                        document.getElementById('bannerPreview').style.backgroundImage = `url(${profile.banner_url})`;
+                    }
+
+                    // Ссылки
+                    document.querySelectorAll('.link-btn').forEach(btn => btn.remove());
+                    let savedLinks = profile.links;
+                    if (typeof savedLinks === 'string') savedLinks = JSON.parse(savedLinks);
+
+                    const container = document.getElementById('linksContainer');
+                    const addBtn = document.querySelector('.add-link-btn');
+
+                    if (savedLinks && savedLinks.length > 0) {
+                        savedLinks.forEach(link => {
+                            const newLink = document.createElement('a');
+                            newLink.href = link.url;
+                            newLink.innerText = link.title;
+                            newLink.className = 'link-btn default'; 
+                            newLink.target = '_blank';
+                            container.insertBefore(newLink, addBtn);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Ошибка загрузки:", error);
+            }
+        }
+
+        window.onload = loadProfile;
+
+        // --- СОХРАНЕНИЕ ПРОФИЛЯ ---
+        async function saveToDatabase() {
+            const fullName = document.querySelector('.profile-name').innerText;
+            const bio = document.querySelector('.profile-bio').innerText;
+            
+            // Собираем ссылки
+            const linksArray = [];
+            document.querySelectorAll('.link-btn').forEach(btn => {
+                linksArray.push({
+                    title: btn.innerText.replace(/[^\wа-яА-ЯёЁ\s]/gi, '').trim(),
+                    url: btn.href
+                });
+            });
+
+            // Достаем картинки
+            const avatarSrc = document.getElementById('avatarPreview').src;
+            const avatarUrlToSave = avatarSrc.includes('via.placeholder.com') ? null : avatarSrc;
+
+            const bannerBg = document.getElementById('bannerPreview').style.backgroundImage;
+            let bannerUrlToSave = null;
+            if (bannerBg && bannerBg.includes('data:image')) {
+                // Очищаем адрес от лишних кавычек и url()
+                bannerUrlToSave = bannerBg.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
+            }
+
+            const dataToSend = {
+                username: currentUser, // Используем имя из ссылки
+                full_name: fullName,
+                bio: bio,
+                links: linksArray,
+                avatar_url: avatarUrlToSave,
+                banner_url: bannerUrlToSave
+            };
+
+            try {
+                const response = await fetch('/api/save-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataToSend)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert("Супер! Ваша визитка сохранена в базу данных Neon!");
+                } else {
+                    alert("Ошибка: " + result.error);
+                }
+            } catch (error) {
+                alert("Сервер не отвечает.");
+            }
+        }
+    </script>
+</body>
+</html>
+        
+        <label for="bannerInput">
+            <div class="banner" id="bannerPreview"></div>
+        </label>
+        <input type="file" id="bannerInput" accept="image/*">
+
+        <div class="avatar-wrapper" onclick="document.getElementById('avatarInput').click()">
+            <img src="https://via.placeholder.com/100?text=Фото" id="avatarPreview" class="avatar">
+        </div>
+        <input type="file" id="avatarInput" accept="image/*">
+
+        <div class="profile-info">
+            <h1 class="profile-name editable" contenteditable="true">Имя Фамилия</h1>
+            <p class="profile-bio editable" contenteditable="true">Краткое описание, должность или статус...</p>
+        </div>
+
+        <button class="save-btn" onclick="saveToDatabase()">💾 Сохранить визитку</button>
+
+        <div class="links-container" id="linksContainer">
+            <a href="#" class="link-btn tg" onclick="editLink(this)">✈️ Telegram</a>
+            <a href="#" class="link-btn wa" onclick="editLink(this)">💬 WhatsApp</a>
+            
+            <button class="add-link-btn" onclick="addNewLink()">+ Добавить ссылку</button>
+        </div>
+
+    </div>
+
+    <script>
+        // Превью Аватара
+        const avatarInput = document.getElementById('avatarInput');
+        const avatarPreview = document.getElementById('avatarPreview');
+
+        avatarInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    avatarPreview.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Превью Баннера
+        const bannerInput = document.getElementById('bannerInput');
+        const bannerPreview = document.getElementById('bannerPreview');
+
+        bannerInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    bannerPreview.style.backgroundImage = `url(${e.target.result})`;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Редактирование ссылок
+        function editLink(element) {
+            event.preventDefault();
+            const newName = prompt("Введите название для кнопки (например, Telegram):", element.innerText.replace(/[^\wа-яА-ЯёЁ\s]/gi, '').trim());
+            if (!newName) return;
+
+            const newUrl = prompt("Введите ссылку (например, https://t.me/username):", element.href !== window.location.href ? element.href : "");
+            
+            if (newUrl) {
+                element.innerText = newName;
+                element.href = newUrl;
+                element.removeAttribute("onclick");
+                element.target = "_blank";
+            }
+        }
+
+        // Добавление ссылок
+        function addNewLink() {
+            const title = prompt("Введите название соцсети/сайта:");
+            if (!title) return;
+
+            const url = prompt("Введите ссылку (начиная с https://):");
+            if (!url) return;
+
+            const newLink = document.createElement('a');
+            newLink.href = url;
+            newLink.innerText = title;
+            newLink.className = 'link-btn default';
+            newLink.target = '_blank';
+
+            const container = document.getElementById('linksContainer');
+            const addBtn = document.querySelector('.add-link-btn');
+            container.insertBefore(newLink, addBtn);
+        }
+
         // --- ЗАГРУЗКА ПРОФИЛЯ ---
         async function loadProfile() {
             const username = 'user_test'; 
