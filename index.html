@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моя NFC Визитка</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; justify-content: center; min-height: 100vh; }
+        .card-container { width: 100%; max-width: 400px; background: white; min-height: 100vh; box-shadow: 0 4px 12px rgba(0,0,0,0.1); position: relative; padding-bottom: 40px; }
+        .banner { width: 100%; height: 180px; background-color: #ccc; background-image: url('https://via.placeholder.com/400x180?text=Загрузить+Баннер'); background-size: cover; background-position: center; position: relative; cursor: pointer; }
+        .banner:hover::after { content: "Изменить баннер"; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .avatar-wrapper { position: absolute; top: 130px; left: 50%; transform: translateX(-50%); cursor: pointer; }
+        .avatar { width: 100px; height: 100px; border-radius: 50%; border: 4px solid white; object-fit: cover; background-color: #eee; }
+        .avatar-wrapper:hover::after { content: "📷"; position: absolute; top: 4px; left: 4px; right: 4px; bottom: 4px; border-radius: 50%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .profile-info { margin-top: 60px; text-align: center; padding: 0 20px; }
+        .profile-name { font-size: 24px; font-weight: bold; color: #333; outline: none; }
+        .profile-bio { font-size: 14px; color: #666; margin-top: 5px; outline: none; min-height: 20px; }
+        .editable { border-bottom: 1px dashed #ccc; padding-bottom: 2px; }
+        .editable:focus { border-bottom: 1px solid #007bff; }
+        .links-container { margin-top: 30px; padding: 0 20px; display: flex; flex-direction: column; gap: 15px; }
+        .link-btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: 10px; text-decoration: none; color: white; font-weight: bold; font-size: 16px; transition: opacity 0.2s; }
+        .link-btn:hover { opacity: 0.9; }
+        .tg { background-color: #0088cc; }
+        .wa { background-color: #25D366; }
+        .vk { background-color: #0077FF; }
+        .default { background-color: #333; }
+        .add-link-btn { background-color: transparent; color: #007bff; border: 2px dashed #007bff; padding: 12px; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 10px; }
+        input[type="file"] { display: none; }
+        .save-btn { width: 90%; margin: 20px 5% 0; padding: 15px; background: #000; color: #fff; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; border: none; }
+        .save-btn:hover { background: #333; }
+    </style>
+</head>
+<body>
+
+    <div class="card-container">
+        
+        <label for="bannerInput">
+            <div class="banner" id="bannerPreview"></div>
+        </label>
+        <input type="file" id="bannerInput" accept="image/*">
+
+        <div class="avatar-wrapper" onclick="document.getElementById('avatarInput').click()">
+            <img src="https://via.placeholder.com/100?text=Фото" id="avatarPreview" class="avatar">
+        </div>
+        <input type="file" id="avatarInput" accept="image/*">
+
+        <div class="profile-info">
+            <h1 class="profile-name editable" contenteditable="true">Имя Фамилия</h1>
+            <p class="profile-bio editable" contenteditable="true">Краткое описание, должность или статус...</p>
+        </div>
+
+        <button class="save-btn" onclick="saveToDatabase()">💾 Сохранить визитку</button>
+
+        <div class="links-container" id="linksContainer">
+            <a href="#" class="link-btn tg" onclick="editLink(this)">✈️ Telegram</a>
+            <a href="#" class="link-btn wa" onclick="editLink(this)">💬 WhatsApp</a>
+            
+            <button class="add-link-btn" onclick="addNewLink()">+ Добавить ссылку</button>
+        </div>
+
+    </div>
+
+    <script>
+        // Превью Аватара
+        const avatarInput = document.getElementById('avatarInput');
+        const avatarPreview = document.getElementById('avatarPreview');
+
+        avatarInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    avatarPreview.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Превью Баннера
+        const bannerInput = document.getElementById('bannerInput');
+        const bannerPreview = document.getElementById('bannerPreview');
+
+        bannerInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    bannerPreview.style.backgroundImage = `url(${e.target.result})`;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Редактирование ссылок
+        function editLink(element) {
+            event.preventDefault();
+            const newName = prompt("Введите название для кнопки (например, Telegram):", element.innerText.replace(/[^\wа-яА-ЯёЁ\s]/gi, '').trim());
+            if (!newName) return;
+
+            const newUrl = prompt("Введите ссылку (например, https://t.me/username):", element.href !== window.location.href ? element.href : "");
+            
+            if (newUrl) {
+                element.innerText = newName;
+                element.href = newUrl;
+                element.removeAttribute("onclick");
+                element.target = "_blank";
+            }
+        }
+
+        // Добавление ссылок
+        function addNewLink() {
+            const title = prompt("Введите название соцсети/сайта:");
+            if (!title) return;
+
+            const url = prompt("Введите ссылку (начиная с https://):");
+            if (!url) return;
+
+            const newLink = document.createElement('a');
+            newLink.href = url;
+            newLink.innerText = title;
+            newLink.className = 'link-btn default';
+            newLink.target = '_blank';
+
+            const container = document.getElementById('linksContainer');
+            const addBtn = document.querySelector('.add-link-btn');
+            container.insertBefore(newLink, addBtn);
+        }
+
+        // --- ЗАГРУЗКА ПРОФИЛЯ ---
+        async function loadProfile() {
+            const username = 'user_test'; 
+            try {
+                // ИЗМЕНЕНИЕ: Запрашиваем данные по относительному пути
+                const response = await fetch(`/api/profile/${username}`, { cache: 'no-store' });
+                const result = await response.json();
+
+                if (result.success) {
+                    const profile = result.profile;
+
+                    // Текст
+                    document.querySelector('.profile-name').innerText = profile.full_name || 'Без имени';
+                    document.querySelector('.profile-bio').innerText = profile.bio || 'Без описания';
+
+                    // Фотографии (если они есть в базе)
+                    if (profile.avatar_url) {
+                        document.getElementById('avatarPreview').src = profile.avatar_url;
+                    }
+                    if (profile.banner_url) {
+                        document.getElementById('bannerPreview').style.backgroundImage = `url(${profile.banner_url})`;
+                    }
+
+                    // Ссылки
+                    document.querySelectorAll('.link-btn').forEach(btn => btn.remove());
+                    let savedLinks = profile.links;
+                    if (typeof savedLinks === 'string') savedLinks = JSON.parse(savedLinks);
+
+                    const container = document.getElementById('linksContainer');
+                    const addBtn = document.querySelector('.add-link-btn');
+
+                    if (savedLinks && savedLinks.length > 0) {
+                        savedLinks.forEach(link => {
+                            const newLink = document.createElement('a');
+                            newLink.href = link.url;
+                            newLink.innerText = link.title;
+                            newLink.className = 'link-btn default'; 
+                            newLink.target = '_blank';
+                            container.insertBefore(newLink, addBtn);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Ошибка загрузки:", error);
+            }
+        }
+
+        window.onload = loadProfile;
+
+        // --- СОХРАНЕНИЕ ПРОФИЛЯ ---
+        async function saveToDatabase() {
+            const fullName = document.querySelector('.profile-name').innerText;
+            const bio = document.querySelector('.profile-bio').innerText;
+            
+            // Собираем ссылки
+            const linksArray = [];
+            document.querySelectorAll('.link-btn').forEach(btn => {
+                linksArray.push({
+                    title: btn.innerText.replace(/[^\wа-яА-ЯёЁ\s]/gi, '').trim(),
+                    url: btn.href
+                });
+            });
+
+            // Достаем картинки
+            const avatarSrc = document.getElementById('avatarPreview').src;
+            const avatarUrlToSave = avatarSrc.includes('via.placeholder.com') ? null : avatarSrc;
+
+            const bannerBg = document.getElementById('bannerPreview').style.backgroundImage;
+            let bannerUrlToSave = null;
+            if (bannerBg && bannerBg.includes('data:image')) {
+                // Очищаем адрес от лишних кавычек и url()
+                bannerUrlToSave = bannerBg.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
+            }
+
+            const dataToSend = {
+                username: "user_test",
+                full_name: fullName,
+                bio: bio,
+                links: linksArray,
+                avatar_url: avatarUrlToSave,
+                banner_url: bannerUrlToSave
+            };
+
+            try {
+                // ИЗМЕНЕНИЕ: Отправляем данные по относительному пути
+                const response = await fetch('/api/save-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataToSend)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert("Супер! Ваша визитка сохранена в базу данных Neon!");
+                } else {
+                    alert("Ошибка: " + result.error);
+                }
+            } catch (error) {
+                alert("Сервер не отвечает. Убедитесь, что node server.js запущен.");
+            }
+        }
+    </script>
+</body>
+</html>
